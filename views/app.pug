@@ -1,0 +1,348 @@
+extends layout
+
+block content
+  .min-h-screen.p-4
+    .max-w-4xl.mx-auto
+      //- Header
+      .flex.justify-between.items-center.mb-6
+        h1(class="text-2xl font-bold") Virtual Try-On
+        .flex.gap-2
+          button(onclick="openSettings()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition")
+            | Settings
+          a(href="/logout" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm transition")
+            | Logout
+      
+      //- Main content
+      .grid.gap-6(class="lg:grid-cols-2")
+        //- Left column - Inputs
+        .space-y-6
+          //- Person Image Upload
+          .bg-gray-800.rounded-xl.p-6
+            h2(class="text-lg font-semibold mb-4") Your Photo
+            .space-y-3
+              //- Preview
+              #personPreview(class="w-full aspect-square bg-gray-700 rounded-lg flex items-center justify-center overflow-hidden")
+                span(class="text-gray-400") No image selected
+              
+              //- Upload buttons
+              .grid.grid-cols-3.gap-2
+                label(class="flex flex-col items-center justify-center py-3 bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer transition")
+                  input(type="file" accept="image/*" capture="environment" onchange="handlePersonImage(this)" class="hidden")
+                  svg(class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                    path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z")
+                    path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z")
+                  span(class="text-xs") Camera
+                
+                label(class="flex flex-col items-center justify-center py-3 bg-green-600 hover:bg-green-700 rounded-lg cursor-pointer transition")
+                  input(type="file" accept="image/*" onchange="handlePersonImage(this)" class="hidden")
+                  svg(class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                    path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z")
+                  span(class="text-xs") Library
+                
+                button(type="button" onclick="clearPersonImage()" class="flex flex-col items-center justify-center py-3 bg-gray-600 hover:bg-gray-500 rounded-lg transition")
+                  svg(class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                    path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16")
+                  span(class="text-xs") Clear
+          
+          //- Wardrobe Selection
+          .bg-gray-800.rounded-xl.p-6
+            h2(class="text-lg font-semibold mb-4") Wardrobe Item
+            
+            //- Preset selection
+            .mb-4
+              label(class="block text-sm font-medium mb-2") Preset Outfits
+              .grid.grid-cols-4.gap-2
+                each num in [1, 2, 3]
+                  button(type="button" onclick=`selectPreset(${num})` class="preset-btn aspect-square bg-gray-700 hover:bg-gray-600 rounded-lg overflow-hidden transition border-2 border-transparent" data-preset=num)
+                    img(src=`/public/wardrobe/${num}.png` alt=`Outfit ${num}` class="w-full h-full object-cover" onerror="this.parentElement.innerHTML='<span class=\"text-xs text-gray-400\">" + num + "</span>'")
+                
+                label(class="preset-btn aspect-square bg-gray-700 hover:bg-gray-600 rounded-lg flex items-center justify-center cursor-pointer transition border-2 border-transparent" data-preset="custom")
+                  input(type="file" accept="image/*" onchange="handleWardrobeImage(this)" class="hidden")
+                  svg(class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                    path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4")
+            
+            //- Custom wardrobe preview
+            #wardrobePreview(class="w-full aspect-video bg-gray-700 rounded-lg flex items-center justify-center overflow-hidden hidden")
+              span(class="text-gray-400") Custom image preview
+          
+          //- Prompt
+          .bg-gray-800.rounded-xl.p-6
+            .flex.justify-between.items-center.mb-2
+              label(for="prompt" class="block text-sm font-medium") Style Prompt (optional)
+              button(type="button" onclick="clearPrompt()" class="text-xs text-gray-400 hover:text-white transition") Clear
+            textarea(id="prompt" rows="3" placeholder="e.g., Make it look professional, casual summer style..." 
+                     class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none")= lastPrompt
+        
+        //- Right column - Provider selection & Results
+        .space-y-6
+          //- Provider Selection
+          .bg-gray-800.rounded-xl.p-6
+            h2(class="text-lg font-semibold mb-4") AI Providers
+            .space-y-3
+              label(class="flex items-center gap-3 p-3 bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-600 transition")
+                input(type="checkbox" name="provider" value="gemini" checked class="w-5 h-5 rounded text-blue-600")
+                .flex-1
+                  span(class="font-medium") Gemini
+                  span(class="text-xs text-gray-400 ml-2") gemini-2.0-flash-exp
+              
+              label(class="flex items-center gap-3 p-3 bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-600 transition")
+                input(type="checkbox" name="provider" value="grok-2-image" class="w-5 h-5 rounded text-blue-600")
+                .flex-1
+                  span(class="font-medium") Grok 2 Image
+                  span(class="text-xs text-gray-400 ml-2") grok-2-image
+              
+              label(class="flex items-center gap-3 p-3 bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-600 transition")
+                input(type="checkbox" name="provider" value="grok-2-image-pro" class="w-5 h-5 rounded text-blue-600")
+                .flex-1
+                  span(class="font-medium") Grok 2 Image Pro
+                  span(class="text-xs text-gray-400 ml-2") grok-2-image-pro
+            
+            button(type="button" onclick="generate()" id="generateBtn" class="w-full mt-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed")
+              | Generate
+          
+          //- Results
+          #results(class="space-y-4")
+            .bg-gray-800.rounded-xl.p-6.text-center.text-gray-400
+              p Results will appear here
+  
+  //- Settings Modal
+  #settingsModal(class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 hidden z-50")
+    .bg-gray-800.rounded-xl.p-6.w-full.max-w-md
+      .flex.justify-between.items-center.mb-6
+        h2(class="text-xl font-bold") Settings
+        button(onclick="closeSettings()" class="text-gray-400 hover:text-white")
+          svg(class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+            path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12")
+      
+      .space-y-6
+        //- Change Password
+        div
+          h3(class="font-medium mb-3") Change Password
+          .flex.gap-2
+            input(type="password" id="newPassword" placeholder="New password" class="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg outline-none focus:ring-2 focus:ring-blue-500")
+            button(onclick="changePassword()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition") Save
+        
+        if !hasServerKeys
+          //- API Keys (for guests)
+          div
+            h3(class="font-medium mb-3") API Keys
+            .space-y-3
+              div
+                label(class="block text-sm text-gray-400 mb-1") Gemini API Key
+                input(type="password" id="geminiKey" placeholder="AIza..." class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg outline-none focus:ring-2 focus:ring-blue-500")
+                a(href="https://aistudio.google.com/app/apikey" target="_blank" class="text-xs text-blue-400 hover:underline") Get key
+              
+              div
+                label(class="block text-sm text-gray-400 mb-1") xAI API Key
+                input(type="password" id="xaiKey" placeholder="xai-..." class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg outline-none focus:ring-2 focus:ring-blue-500")
+                a(href="https://console.x.ai/team/default/api-keys" target="_blank" class="text-xs text-blue-400 hover:underline") Get key
+              
+              button(onclick="saveKeys()" class="w-full py-2 bg-green-600 hover:bg-green-700 rounded-lg transition") Save Keys
+
+block scripts
+  script.
+    let personImageData = null;
+    let wardrobeImageData = null;
+    let selectedPreset = null;
+    
+    // Load saved settings on page load
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+        
+        if (data.lastPrompt) {
+          document.getElementById('prompt').value = data.lastPrompt;
+        }
+        
+        if (!#{hasServerKeys}) {
+          if (data.geminiKey) document.getElementById('geminiKey').value = data.geminiKey;
+          if (data.xaiKey) document.getElementById('xaiKey').value = data.xaiKey;
+        }
+      } catch (err) {
+        console.error('Failed to load settings:', err);
+      }
+    });
+    
+    function handlePersonImage(input) {
+      const file = input.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        personImageData = e.target.result;
+        const preview = document.getElementById('personPreview');
+        preview.innerHTML = `<img src="${personImageData}" class="w-full h-full object-contain">`;
+      };
+      reader.readAsDataURL(file);
+    }
+    
+    function clearPersonImage() {
+      personImageData = null;
+      document.getElementById('personPreview').innerHTML = '<span class="text-gray-400">No image selected</span>';
+    }
+    
+    function selectPreset(num) {
+      selectedPreset = num;
+      wardrobeImageData = null;
+      
+      // Update UI
+      document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.classList.remove('border-blue-500');
+        btn.classList.add('border-transparent');
+      });
+      document.querySelector(`[data-preset="${num}"]`).classList.remove('border-transparent');
+      document.querySelector(`[data-preset="${num}"]`).classList.add('border-blue-500');
+      
+      document.getElementById('wardrobePreview').classList.add('hidden');
+    }
+    
+    function handleWardrobeImage(input) {
+      const file = input.files[0];
+      if (!file) return;
+      
+      selectedPreset = null;
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        wardrobeImageData = e.target.result;
+        
+        // Update UI
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+          btn.classList.remove('border-blue-500');
+          btn.classList.add('border-transparent');
+        });
+        document.querySelector('[data-preset="custom"]').classList.remove('border-transparent');
+        document.querySelector('[data-preset="custom"]').classList.add('border-blue-500');
+        
+        const preview = document.getElementById('wardrobePreview');
+        preview.innerHTML = `<img src="${wardrobeImageData}" class="w-full h-full object-contain">`;
+        preview.classList.remove('hidden');
+      };
+      reader.readAsDataURL(file);
+    }
+    
+    async function clearPrompt() {
+      document.getElementById('prompt').value = '';
+      await fetch('/api/prompt/clear', { method: 'POST' });
+    }
+    
+    async function generate() {
+      if (!personImageData) {
+        alert('Please upload your photo first');
+        return;
+      }
+      
+      const providers = Array.from(document.querySelectorAll('input[name="provider"]:checked')).map(cb => cb.value);
+      if (providers.length === 0) {
+        alert('Please select at least one AI provider');
+        return;
+      }
+      
+      const prompt = document.getElementById('prompt').value;
+      const btn = document.getElementById('generateBtn');
+      const results = document.getElementById('results');
+      
+      btn.disabled = true;
+      btn.textContent = 'Generating...';
+      results.innerHTML = '<div class="bg-gray-800 rounded-xl p-6 text-center"><div class="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto"></div><p class="mt-4 text-gray-400">Processing with ' + providers.length + ' provider(s)...</p></div>';
+      
+      try {
+        const formData = new FormData();
+        formData.append('providers', JSON.stringify(providers));
+        formData.append('prompt', prompt);
+        
+        // Convert base64 to blob for person image
+        const personBlob = await fetch(personImageData).then(r => r.blob());
+        formData.append('personImage', personBlob, 'person.png');
+        
+        // Add wardrobe image or preset
+        if (wardrobeImageData) {
+          const wardrobeBlob = await fetch(wardrobeImageData).then(r => r.blob());
+          formData.append('wardrobeImage', wardrobeBlob, 'wardrobe.png');
+        } else if (selectedPreset) {
+          formData.append('wardrobePreset', selectedPreset);
+        }
+        
+        const res = await fetch('/api/generate', {
+          method: 'POST',
+          body: formData
+        });
+        
+        const data = await res.json();
+        
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        
+        // Display results
+        results.innerHTML = data.results.map(r => `
+          <div class="bg-gray-800 rounded-xl p-4">
+            <h3 class="font-medium mb-3">${r.provider}</h3>
+            ${r.image ? `<img src="${r.image}" class="w-full rounded-lg">` : ''}
+            ${r.text ? `<p class="text-sm text-gray-400 mt-2">${r.text}</p>` : ''}
+            ${r.error ? `<p class="text-red-400 text-sm">${r.error}</p>` : ''}
+          </div>
+        `).join('');
+        
+      } catch (err) {
+        results.innerHTML = `<div class="bg-gray-800 rounded-xl p-6 text-center text-red-400">${err.message}</div>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Generate';
+      }
+    }
+    
+    function openSettings() {
+      document.getElementById('settingsModal').classList.remove('hidden');
+    }
+    
+    function closeSettings() {
+      document.getElementById('settingsModal').classList.add('hidden');
+    }
+    
+    async function changePassword() {
+      const newPassword = document.getElementById('newPassword').value;
+      if (!newPassword) return;
+      
+      const res = await fetch('/settings/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword })
+      });
+      
+      const data = await res.json();
+      if (data.success) {
+        alert('Password changed successfully');
+        document.getElementById('newPassword').value = '';
+      } else {
+        alert(data.error || 'Failed to change password');
+      }
+    }
+    
+    async function saveKeys() {
+      const geminiKey = document.getElementById('geminiKey')?.value || '';
+      const xaiKey = document.getElementById('xaiKey')?.value || '';
+      
+      const res = await fetch('/settings/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ geminiKey, xaiKey })
+      });
+      
+      const data = await res.json();
+      if (data.success) {
+        alert('API keys saved');
+      } else {
+        alert('Failed to save keys');
+      }
+    }
+    
+    // Save prompt on change
+    document.getElementById('prompt')?.addEventListener('change', async (e) => {
+      await fetch('/api/prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: e.target.value })
+      });
+    });
