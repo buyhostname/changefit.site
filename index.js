@@ -251,6 +251,43 @@ app.post('/login/guest', async (req, res) => {
     const session = await prisma.userSession.create({ data: {} });
     const token = generateToken(session.id, config.jwtVersion, false);
     res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000 });
+    res.redirect('/setup');
+});
+
+// API key setup page (for guests)
+app.get('/setup', authMiddleware, async (req, res) => {
+    // If user has server keys (password login), redirect to main app
+    if (req.hasServerKeys) {
+        return res.redirect('/');
+    }
+    
+    const session = await prisma.userSession.findUnique({ where: { id: req.sessionId } });
+    
+    // If user already has at least one key, redirect to main app
+    if (session?.geminiKey || session?.xaiKey) {
+        return res.redirect('/');
+    }
+    
+    res.render('setup', { title: 'Setup API Keys' });
+});
+
+// Save API keys from setup page
+app.post('/setup', authMiddleware, async (req, res) => {
+    const { geminiKey, xaiKey } = req.body;
+    
+    // Require at least one key
+    if (!geminiKey && !xaiKey) {
+        return res.render('setup', { 
+            title: 'Setup API Keys', 
+            error: 'Please enter at least one API key' 
+        });
+    }
+    
+    await prisma.userSession.update({
+        where: { id: req.sessionId },
+        data: { geminiKey: geminiKey || null, xaiKey: xaiKey || null }
+    });
+    
     res.redirect('/');
 });
 
@@ -368,6 +405,12 @@ app.get('/logout', (req, res) => {
 // Main app page
 app.get('/', authMiddleware, async (req, res) => {
     const session = await prisma.userSession.findUnique({ where: { id: req.sessionId } });
+    
+    // Redirect guests without API keys to setup
+    if (!req.hasServerKeys && !session?.geminiKey && !session?.xaiKey) {
+        return res.redirect('/setup');
+    }
+    
     res.render('app', {
         title: 'Virtual Try-On',
         hasServerKeys: req.hasServerKeys,

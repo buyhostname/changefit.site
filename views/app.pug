@@ -1,315 +1,265 @@
 extends layout
 
+block head
+  style.
+    .photo-box {
+      width: 80px; height: 80px;
+      border: 1px solid #333; border-radius: 5px;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden; background: #111;
+    }
+    .photo-box img { width: 100%; height: 100%; object-fit: cover; }
+    .preset-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .preset-item {
+      aspect-ratio: 1; border-radius: 5px; overflow: hidden;
+      border: 2px solid transparent; cursor: pointer;
+      background: #111; transition: border-color 0.15s;
+    }
+    .preset-item:hover { border-color: #444; }
+    .preset-item.selected { border-color: #fff; }
+    .preset-item img { width: 100%; height: 100%; object-fit: cover; }
+    .chip { 
+      padding: 6px 12px; border-radius: 5px; font-size: 13px;
+      border: 1px solid #333; cursor: pointer; transition: all 0.15s;
+    }
+    .chip.active { background: #fff; color: #000; border-color: #fff; }
+    .modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+      display: flex; align-items: flex-end; justify-content: center;
+      z-index: 100;
+    }
+    .modal-content {
+      width: 100%; max-width: 400px; background: #000;
+      border-top: 1px solid #222; padding: 24px 20px 40px;
+      max-height: 80vh; overflow-y: auto;
+    }
+    .result-card { border: 1px solid #222; border-radius: 5px; overflow: hidden; }
+    .result-card img { width: 100%; display: block; }
+    .result-header { padding: 12px 16px; border-bottom: 1px solid #222; font-size: 13px; }
+    .result-error { padding: 16px; color: #f66; font-size: 13px; }
+
 block content
-  .min-h-screen.p-4
-    .max-w-4xl.mx-auto
-      //- Header
-      .flex.justify-between.items-center.mb-6
-        h1(class="text-2xl font-bold") Virtual Try-On
-        .flex.gap-2
-          button(onclick="openSettings()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition")
-            | Settings
-          a(href="/logout" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm transition")
-            | Logout
+  .container(style="padding-top: 20px; padding-bottom: 100px;")
+    //- Header
+    header.flex.items-center.justify-between.mb-3
+      h1(style="font-size: 18px; font-weight: 600; margin: 0;") Try-On
+      .flex.gap-1
+        button.btn.btn-secondary(onclick="openSettings()" style="padding: 0 12px; height: 32px; font-size: 12px;") Settings
+        a.btn.btn-secondary(href="/logout" style="padding: 0 12px; height: 32px; font-size: 12px;") Logout
+    
+    //- Your Photo
+    section.card.mb-2
+      .flex.items-center.justify-between.mb-2
+        span.text-sm Your Photo
+        span#savedBadge.text-xs.text-muted.hidden saved locally
+      .flex.items-center.gap-2
+        #personPreview.photo-box
+          span.text-muted.text-xs +
+        .flex.gap-1(style="flex: 1;")
+          label.btn.btn-secondary(style="flex: 1; cursor: pointer; font-size: 12px;")
+            input(type="file" accept="image/*" capture="environment" onchange="handlePerson(this)" style="display: none;")
+            | Camera
+          label.btn.btn-secondary(style="flex: 1; cursor: pointer; font-size: 12px;")
+            input(type="file" accept="image/*" onchange="handlePerson(this)" style="display: none;")
+            | Library
+          button.btn.btn-secondary(onclick="clearPerson()" style="padding: 0 10px; font-size: 12px;") ×
+    
+    //- Wardrobe
+    section.card.mb-2
+      .flex.items-center.justify-between.mb-2
+        span.text-sm Outfit
+        .flex.gap-1
+          label.btn.btn-secondary(style="padding: 0 10px; height: 28px; font-size: 11px; cursor: pointer;")
+            input(type="file" accept="image/*" capture="environment" onchange="handleWardrobe(this)" style="display: none;")
+            | + Camera
+          label.btn.btn-secondary(style="padding: 0 10px; height: 28px; font-size: 11px; cursor: pointer;")
+            input(type="file" accept="image/*" onchange="handleWardrobe(this)" style="display: none;")
+            | + Library
       
-      //- Main content
-      .grid.gap-6(class="lg:grid-cols-2")
-        //- Left column - Inputs
-        .space-y-6
-          //- Person Image Upload
-          .bg-gray-800.rounded-xl.p-6
-            h2(class="text-lg font-semibold mb-4") Your Photo
-            .space-y-3
-              //- Preview
-              #personPreview(class="w-full aspect-square bg-gray-700 rounded-lg flex items-center justify-center overflow-hidden")
-                span(class="text-gray-400") No image selected
-              
-              //- Upload buttons
-              .grid.grid-cols-3.gap-2
-                label(class="flex flex-col items-center justify-center py-3 bg-blue-600 hover:bg-blue-700 rounded-lg cursor-pointer transition")
-                  input(type="file" accept="image/*" capture="environment" onchange="handlePersonImage(this)" class="hidden")
-                  svg(class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24")
-                    path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z")
-                    path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z")
-                  span(class="text-xs") Camera
-                
-                label(class="flex flex-col items-center justify-center py-3 bg-green-600 hover:bg-green-700 rounded-lg cursor-pointer transition")
-                  input(type="file" accept="image/*" onchange="handlePersonImage(this)" class="hidden")
-                  svg(class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24")
-                    path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z")
-                  span(class="text-xs") Library
-                
-                button(type="button" onclick="clearPersonImage()" class="flex flex-col items-center justify-center py-3 bg-gray-600 hover:bg-gray-500 rounded-lg transition")
-                  svg(class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24")
-                    path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16")
-                  span(class="text-xs") Clear
-          
-          //- Wardrobe Selection
-          .bg-gray-800.rounded-xl.p-6
-            h2(class="text-lg font-semibold mb-4") Wardrobe Item
-            
-            //- Preset selection
-            .mb-4
-              label(class="block text-sm font-medium mb-2") Preset Outfits
-              #wardrobeGrid(class="grid grid-cols-4 gap-2")
-                //- Presets loaded dynamically
-                
-                label(class="preset-btn aspect-square bg-gray-700 hover:bg-gray-600 rounded-lg flex items-center justify-center cursor-pointer transition border-2 border-transparent" data-preset="custom")
-                  input(type="file" accept="image/*" onchange="handleWardrobeImage(this)" class="hidden")
-                  svg(class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24")
-                    path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4")
-            
-            //- Custom wardrobe preview
-            #wardrobePreview(class="w-full aspect-video bg-gray-700 rounded-lg flex items-center justify-center overflow-hidden hidden")
-              span(class="text-gray-400") Custom image preview
-            
-            //- Save button (only shown for password-authenticated users with custom image)
-            if hasServerKeys
-              button(type="button" onclick="saveWardrobeItem()" id="saveWardrobeBtn" class="w-full mt-3 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition hidden")
-                | Save to Presets
-          
-          //- Prompt
-          .bg-gray-800.rounded-xl.p-6
-            .flex.justify-between.items-center.mb-2
-              label(for="prompt" class="block text-sm font-medium") Style Prompt (optional)
-              button(type="button" onclick="clearPrompt()" class="text-xs text-gray-400 hover:text-white transition") Clear
-            textarea(id="prompt" rows="3" placeholder="e.g., Make it look professional, casual summer style..." 
-                     class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none")= lastPrompt
-        
-        //- Right column - Provider selection & Results
-        .space-y-6
-          //- Provider Selection
-          .bg-gray-800.rounded-xl.p-6
-            h2(class="text-lg font-semibold mb-4") AI Providers
-            .space-y-3
-              label(class="flex items-center gap-3 p-3 bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-600 transition")
-                input(type="checkbox" name="provider" value="gemini" checked class="w-5 h-5 rounded text-blue-600")
-                .flex-1
-                  span(class="font-medium") Gemini
-                  span(class="text-xs text-gray-400 ml-2") gemini-3-pro-image-preview
-              
-              label(class="flex items-center gap-3 p-3 bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-600 transition")
-                input(type="checkbox" name="provider" value="grok-imagine-image" class="w-5 h-5 rounded text-blue-600")
-                .flex-1
-                  span(class="font-medium") Grok Imagine Image
-                  span(class="text-xs text-gray-400 ml-2") grok-imagine-image
-              
-              label(class="flex items-center gap-3 p-3 bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-600 transition")
-                input(type="checkbox" name="provider" value="grok-imagine-image-pro" class="w-5 h-5 rounded text-blue-600")
-                .flex-1
-                  span(class="font-medium") Grok Imagine Image Pro
-                  span(class="text-xs text-gray-400 ml-2") grok-imagine-image-pro
-            
-            button(type="button" onclick="generate()" id="generateBtn" class="w-full mt-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed")
-              | Generate
-          
-          //- Results
-          #results(class="space-y-4")
-            .bg-gray-800.rounded-xl.p-6.text-center.text-gray-400
-              p Results will appear here
+      #wardrobeGrid.preset-grid
+        //- Loaded dynamically
+      
+      #wardrobePreview.hidden(style="margin-top: 12px;")
+        .photo-box(style="width: 100%; height: auto; aspect-ratio: 16/9;")
+          img#wardrobePreviewImg(src="" alt="")
+        if hasServerKeys
+          button#saveWardrobeBtn.btn.w-full.mt-1(onclick="saveWardrobe()" style="height: 32px; font-size: 12px;") Save to Presets
+    
+    //- Prompt
+    section.card.mb-2
+      .flex.items-center.justify-between.mb-1
+        span.text-sm Instructions
+        button.text-xs.text-muted(onclick="clearPrompt()" style="background: none; border: none; cursor: pointer;") Clear
+      textarea.input(id="prompt" rows="2" placeholder="e.g., casual summer look...")= lastPrompt
+    
+    //- Provider
+    section.card.mb-2
+      span.text-sm(style="display: block; margin-bottom: 12px;") Model
+      .flex.gap-1(style="flex-wrap: wrap;")
+        label.chip
+          input(type="checkbox" name="provider" value="gemini" checked onchange="updateChip(this)" style="display: none;")
+          span Gemini
+        label.chip
+          input(type="checkbox" name="provider" value="grok-imagine-image" onchange="updateChip(this)" style="display: none;")
+          span Grok
+        label.chip
+          input(type="checkbox" name="provider" value="grok-imagine-image-pro" onchange="updateChip(this)" style="display: none;")
+          span Grok Pro
+    
+    //- Results
+    #results(style="display: flex; flex-direction: column; gap: 12px;")
+  
+  //- Fixed Generate Button
+  div(style="position: fixed; bottom: 0; left: 0; right: 0; padding: 16px 20px; background: linear-gradient(to top, #000 60%, transparent); z-index: 50;")
+    .container(style="padding: 0;")
+      button#generateBtn.btn.w-full(onclick="generate()" style="height: 48px;")
+        span#btnText Generate
+        .hidden#btnLoading.flex.items-center.justify-center.gap-1
+          .spinner
+          span Processing...
   
   //- Settings Modal
-  #settingsModal(class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 hidden z-50")
-    .bg-gray-800.rounded-xl.p-6.w-full.max-w-md
-      .flex.justify-between.items-center.mb-6
-        h2(class="text-xl font-bold") Settings
-        button(onclick="closeSettings()" class="text-gray-400 hover:text-white")
-          svg(class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24")
-            path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12")
+  #settingsModal.modal.hidden(onclick="closeSettings()")
+    .modal-content(onclick="event.stopPropagation()")
+      h2(style="font-size: 18px; font-weight: 600; margin: 0 0 24px 0;") Settings
       
-      .space-y-6
-        //- Change Password
+      div.mb-3
+        label.label Change Password
+        .flex.gap-1
+          input.input#newPassword(type="password" placeholder="New password" style="flex: 1;")
+          button.btn(onclick="changePassword()" style="padding: 0 16px;") Save
+      
+      if !hasServerKeys
+        .divider
         div
-          h3(class="font-medium mb-3") Change Password
-          .flex.gap-2
-            input(type="password" id="newPassword" placeholder="New password" class="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg outline-none focus:ring-2 focus:ring-blue-500")
-            button(onclick="changePassword()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition") Save
-        
-        if !hasServerKeys
-          //- API Keys (for guests)
+          label.label API Keys
+          div.mb-2
+            .flex.items-center.justify-between.mb-1
+              span.text-xs Gemini
+              a.text-xs(href="https://aistudio.google.com/app/apikey" target="_blank") Get key →
+            input.input#geminiKey(type="password" placeholder="AIza...")
           div
-            h3(class="font-medium mb-3") API Keys
-            .space-y-3
-              div
-                label(class="block text-sm text-gray-400 mb-1") Gemini API Key
-                input(type="password" id="geminiKey" placeholder="AIza..." class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg outline-none focus:ring-2 focus:ring-blue-500")
-                a(href="https://aistudio.google.com/app/apikey" target="_blank" class="text-xs text-blue-400 hover:underline") Get key
-              
-              div
-                label(class="block text-sm text-gray-400 mb-1") xAI API Key
-                input(type="password" id="xaiKey" placeholder="xai-..." class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg outline-none focus:ring-2 focus:ring-blue-500")
-                a(href="https://console.x.ai/team/default/api-keys" target="_blank" class="text-xs text-blue-400 hover:underline") Get key
-              
-              button(onclick="saveKeys()" class="w-full py-2 bg-green-600 hover:bg-green-700 rounded-lg transition") Save Keys
+            .flex.items-center.justify-between.mb-1
+              span.text-xs xAI
+              a.text-xs(href="https://console.x.ai/team/default/api-keys" target="_blank") Get key →
+            input.input#xaiKey(type="password" placeholder="xai-...")
+          button.btn.w-full.mt-2(onclick="saveKeys()") Save Keys
+      
+      .divider
+      button.btn.btn-secondary.w-full(onclick="closeSettings()") Close
 
 block scripts
   script.
-    let personImageData = null;
-    let wardrobeImageData = null;
-    let selectedPreset = null;
-    let canSaveWardrobe = false;
+    let personData = null, wardrobeData = null, selectedPreset = null, canSave = false;
     
-    // Load saved settings and wardrobe presets on page load
+    document.querySelectorAll('.chip').forEach(c => updateChip(c.querySelector('input')));
+    
+    function updateChip(cb) {
+      cb.parentElement.classList.toggle('active', cb.checked);
+    }
+    
     document.addEventListener('DOMContentLoaded', async () => {
+      const saved = localStorage.getItem('personImage');
+      if (saved) {
+        personData = saved;
+        document.getElementById('personPreview').innerHTML = `<img src="${saved}">`;
+        document.getElementById('savedBadge').classList.remove('hidden');
+      }
+      
       try {
         const res = await fetch('/api/settings');
         const data = await res.json();
-        
-        if (data.lastPrompt) {
-          document.getElementById('prompt').value = data.lastPrompt;
-        }
-        
+        if (data.lastPrompt) document.getElementById('prompt').value = data.lastPrompt;
         if (!#{hasServerKeys}) {
           if (data.geminiKey) document.getElementById('geminiKey').value = data.geminiKey;
           if (data.xaiKey) document.getElementById('xaiKey').value = data.xaiKey;
         }
-      } catch (err) {
-        console.error('Failed to load settings:', err);
-      }
+      } catch (e) {}
       
-      // Load wardrobe presets
-      await loadWardrobePresets();
+      loadPresets();
     });
     
-    async function loadWardrobePresets() {
+    async function loadPresets() {
       try {
         const res = await fetch('/api/wardrobe/list');
         const data = await res.json();
-        canSaveWardrobe = data.canSave;
-        
+        canSave = data.canSave;
         const grid = document.getElementById('wardrobeGrid');
-        const addBtn = grid.querySelector('[data-preset="custom"]');
-        
-        // Remove existing preset buttons (except the add button)
-        grid.querySelectorAll('.preset-btn:not([data-preset="custom"])').forEach(btn => btn.remove());
-        
-        // Add preset buttons before the add button
+        grid.innerHTML = data.presets.length ? '' : '<p class="text-xs text-muted" style="grid-column: span 4; text-align: center; padding: 16px 0;">No presets</p>';
         data.presets.forEach(name => {
           const btn = document.createElement('button');
           btn.type = 'button';
-          btn.onclick = () => selectPreset(name);
-          btn.className = 'preset-btn aspect-square bg-gray-700 hover:bg-gray-600 rounded-lg overflow-hidden transition border-2 border-transparent';
+          btn.className = 'preset-item';
           btn.dataset.preset = name;
-          btn.innerHTML = `<img src="/public/wardrobe/${name}.png" alt="Outfit" class="w-full h-full object-cover" onerror="this.parentElement.style.display='none'">`;
-          grid.insertBefore(btn, addBtn);
+          btn.onclick = () => selectPreset(name);
+          btn.innerHTML = `<img src="/public/wardrobe/${name}.png" onerror="this.parentElement.remove()">`;
+          grid.appendChild(btn);
         });
-      } catch (err) {
-        console.error('Failed to load wardrobe presets:', err);
-      }
+      } catch (e) {}
     }
     
-    function handlePersonImage(input) {
+    function handlePerson(input) {
       const file = input.files[0];
       if (!file) return;
-      
       const reader = new FileReader();
-      reader.onload = (e) => {
-        personImageData = e.target.result;
-        const preview = document.getElementById('personPreview');
-        preview.innerHTML = `<img src="${personImageData}" class="w-full h-full object-contain">`;
+      reader.onload = e => {
+        personData = e.target.result;
+        document.getElementById('personPreview').innerHTML = `<img src="${personData}">`;
+        localStorage.setItem('personImage', personData);
+        document.getElementById('savedBadge').classList.remove('hidden');
       };
       reader.readAsDataURL(file);
     }
     
-    function clearPersonImage() {
-      personImageData = null;
-      document.getElementById('personPreview').innerHTML = '<span class="text-gray-400">No image selected</span>';
+    function clearPerson() {
+      personData = null;
+      document.getElementById('personPreview').innerHTML = '<span class="text-muted text-xs">+</span>';
+      document.getElementById('savedBadge').classList.add('hidden');
     }
     
-    function selectPreset(num) {
-      selectedPreset = num;
-      wardrobeImageData = null;
-      
-      // Update UI
-      document.querySelectorAll('.preset-btn').forEach(btn => {
-        btn.classList.remove('border-blue-500');
-        btn.classList.add('border-transparent');
-      });
-      document.querySelector(`[data-preset="${num}"]`).classList.remove('border-transparent');
-      document.querySelector(`[data-preset="${num}"]`).classList.add('border-blue-500');
-      
+    function selectPreset(name) {
+      selectedPreset = name;
+      wardrobeData = null;
+      document.querySelectorAll('.preset-item').forEach(b => b.classList.remove('selected'));
+      document.querySelector(`[data-preset="${name}"]`)?.classList.add('selected');
       document.getElementById('wardrobePreview').classList.add('hidden');
-      
-      // Hide save button when selecting a preset
-      const saveBtn = document.getElementById('saveWardrobeBtn');
-      if (saveBtn) {
-        saveBtn.classList.add('hidden');
-      }
     }
     
-    function handleWardrobeImage(input) {
+    function handleWardrobe(input) {
       const file = input.files[0];
       if (!file) return;
-      
       selectedPreset = null;
-      
+      document.querySelectorAll('.preset-item').forEach(b => b.classList.remove('selected'));
       const reader = new FileReader();
-      reader.onload = (e) => {
-        wardrobeImageData = e.target.result;
-        
-        // Update UI
-        document.querySelectorAll('.preset-btn').forEach(btn => {
-          btn.classList.remove('border-blue-500');
-          btn.classList.add('border-transparent');
-        });
-        document.querySelector('[data-preset="custom"]').classList.remove('border-transparent');
-        document.querySelector('[data-preset="custom"]').classList.add('border-blue-500');
-        
-        const preview = document.getElementById('wardrobePreview');
-        preview.innerHTML = `<img src="${wardrobeImageData}" class="w-full h-full object-contain">`;
-        preview.classList.remove('hidden');
-        
-        // Show save button if user can save
-        const saveBtn = document.getElementById('saveWardrobeBtn');
-        if (saveBtn && canSaveWardrobe) {
-          saveBtn.classList.remove('hidden');
-        }
+      reader.onload = e => {
+        wardrobeData = e.target.result;
+        document.getElementById('wardrobePreviewImg').src = wardrobeData;
+        document.getElementById('wardrobePreview').classList.remove('hidden');
       };
       reader.readAsDataURL(file);
     }
     
-    async function saveWardrobeItem() {
-      if (!wardrobeImageData) {
-        alert('No custom wardrobe image to save');
-        return;
-      }
-      
-      const saveBtn = document.getElementById('saveWardrobeBtn');
-      saveBtn.disabled = true;
-      saveBtn.textContent = 'Saving...';
-      
+    async function saveWardrobe() {
+      if (!wardrobeData) return;
+      const btn = document.getElementById('saveWardrobeBtn');
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
       try {
         const formData = new FormData();
-        const wardrobeBlob = await fetch(wardrobeImageData).then(r => r.blob());
-        formData.append('wardrobeImage', wardrobeBlob, 'wardrobe.png');
-        
-        const res = await fetch('/api/wardrobe/save', {
-          method: 'POST',
-          body: formData
-        });
-        
+        const blob = await fetch(wardrobeData).then(r => r.blob());
+        formData.append('wardrobeImage', blob, 'wardrobe.png');
+        const res = await fetch('/api/wardrobe/save', { method: 'POST', body: formData });
         const data = await res.json();
-        
-        if (data.error) {
-          throw new Error(data.error);
-        }
-        
-        alert('Saved to wardrobe!');
-        
-        // Reload presets and select the new one
-        await loadWardrobePresets();
+        if (data.error) throw new Error(data.error);
+        await loadPresets();
         selectPreset(data.filename.replace('.png', ''));
-        
-        // Hide save button and preview
-        saveBtn.classList.add('hidden');
         document.getElementById('wardrobePreview').classList.add('hidden');
-        wardrobeImageData = null;
-        
-      } catch (err) {
-        alert('Failed to save: ' + err.message);
+        wardrobeData = null;
+      } catch (e) {
+        alert(e.message);
       } finally {
-        saveBtn.disabled = false;
-        saveBtn.textContent = 'Save to Presets';
+        btn.disabled = false;
+        btn.textContent = 'Save to Presets';
       }
     }
     
@@ -319,118 +269,87 @@ block scripts
     }
     
     async function generate() {
-      if (!personImageData) {
-        alert('Please upload your photo first');
-        return;
-      }
+      if (!personData) return alert('Add your photo first');
+      const providers = Array.from(document.querySelectorAll('input[name="provider"]:checked')).map(c => c.value);
+      if (!providers.length) return alert('Select a model');
       
-      const providers = Array.from(document.querySelectorAll('input[name="provider"]:checked')).map(cb => cb.value);
-      if (providers.length === 0) {
-        alert('Please select at least one AI provider');
-        return;
-      }
-      
-      const prompt = document.getElementById('prompt').value;
       const btn = document.getElementById('generateBtn');
+      const btnText = document.getElementById('btnText');
+      const btnLoading = document.getElementById('btnLoading');
       const results = document.getElementById('results');
       
       btn.disabled = true;
-      btn.textContent = 'Generating...';
-      results.innerHTML = '<div class="bg-gray-800 rounded-xl p-6 text-center"><div class="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto"></div><p class="mt-4 text-gray-400">Processing with ' + providers.length + ' provider(s)...</p></div>';
+      btnText.classList.add('hidden');
+      btnLoading.classList.remove('hidden');
+      results.innerHTML = '<div class="card" style="padding: 40px; text-align: center;"><div class="spinner" style="margin: 0 auto;"></div></div>';
       
       try {
         const formData = new FormData();
         formData.append('providers', JSON.stringify(providers));
-        formData.append('prompt', prompt);
-        
-        // Convert base64 to blob for person image
-        const personBlob = await fetch(personImageData).then(r => r.blob());
+        formData.append('prompt', document.getElementById('prompt').value);
+        const personBlob = await fetch(personData).then(r => r.blob());
         formData.append('personImage', personBlob, 'person.png');
-        
-        // Add wardrobe image or preset
-        if (wardrobeImageData) {
-          const wardrobeBlob = await fetch(wardrobeImageData).then(r => r.blob());
-          formData.append('wardrobeImage', wardrobeBlob, 'wardrobe.png');
+        if (wardrobeData) {
+          const blob = await fetch(wardrobeData).then(r => r.blob());
+          formData.append('wardrobeImage', blob, 'wardrobe.png');
         } else if (selectedPreset) {
           formData.append('wardrobePreset', selectedPreset);
         }
         
-        const res = await fetch('/api/generate', {
-          method: 'POST',
-          body: formData
-        });
-        
+        const res = await fetch('/api/generate', { method: 'POST', body: formData });
         const data = await res.json();
+        if (data.error) throw new Error(data.error);
         
-        if (data.error) {
-          throw new Error(data.error);
-        }
-        
-        // Display results
         results.innerHTML = data.results.map(r => `
-          <div class="bg-gray-800 rounded-xl p-4">
-            <h3 class="font-medium mb-3">${r.provider}</h3>
-            ${r.image ? `<img src="${r.image}" class="w-full rounded-lg">` : ''}
-            ${r.text ? `<p class="text-sm text-gray-400 mt-2">${r.text}</p>` : ''}
-            ${r.error ? `<p class="text-red-400 text-sm">${r.error}</p>` : ''}
+          <div class="result-card">
+            <div class="result-header flex items-center justify-between">
+              <span>${r.provider}</span>
+              <span class="text-muted">${r.error ? 'Error' : 'Done'}</span>
+            </div>
+            ${r.image ? `<img src="${r.image}" onclick="window.open(this.src)">` : ''}
+            ${r.error ? `<div class="result-error">${r.error}</div>` : ''}
           </div>
         `).join('');
-        
-      } catch (err) {
-        results.innerHTML = `<div class="bg-gray-800 rounded-xl p-6 text-center text-red-400">${err.message}</div>`;
+      } catch (e) {
+        results.innerHTML = `<div class="card result-error">${e.message}</div>`;
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Generate';
+        btnText.classList.remove('hidden');
+        btnLoading.classList.add('hidden');
       }
     }
     
-    function openSettings() {
-      document.getElementById('settingsModal').classList.remove('hidden');
-    }
-    
-    function closeSettings() {
-      document.getElementById('settingsModal').classList.add('hidden');
-    }
+    function openSettings() { document.getElementById('settingsModal').classList.remove('hidden'); }
+    function closeSettings() { document.getElementById('settingsModal').classList.add('hidden'); }
     
     async function changePassword() {
-      const newPassword = document.getElementById('newPassword').value;
-      if (!newPassword) return;
-      
+      const pw = document.getElementById('newPassword').value;
+      if (!pw) return;
       const res = await fetch('/settings/password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newPassword })
+        body: JSON.stringify({ newPassword: pw })
       });
-      
-      const data = await res.json();
-      if (data.success) {
-        alert('Password changed successfully');
+      if ((await res.json()).success) {
+        alert('Password updated');
         document.getElementById('newPassword').value = '';
       } else {
-        alert(data.error || 'Failed to change password');
+        alert('Failed');
       }
     }
     
     async function saveKeys() {
       const geminiKey = document.getElementById('geminiKey')?.value || '';
       const xaiKey = document.getElementById('xaiKey')?.value || '';
-      
       const res = await fetch('/settings/keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ geminiKey, xaiKey })
       });
-      
-      const data = await res.json();
-      if (data.success) {
-        alert('API keys saved');
-      } else {
-        alert('Failed to save keys');
-      }
+      alert((await res.json()).success ? 'Keys saved' : 'Failed');
     }
     
-    // Save prompt on change
-    document.getElementById('prompt')?.addEventListener('change', async (e) => {
+    document.getElementById('prompt')?.addEventListener('change', async e => {
       await fetch('/api/prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
