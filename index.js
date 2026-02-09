@@ -9,6 +9,8 @@ const fs = require('fs');
 const { PrismaClient } = require('@prisma/client');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
+const crypto = require('crypto');
+
 const app = express();
 const prisma = new PrismaClient();
 
@@ -292,6 +294,52 @@ app.get('/api/settings', authMiddleware, async (req, res) => {
     });
 });
 
+// Save custom wardrobe item (only for password-authenticated users)
+app.post('/api/wardrobe/save', authMiddleware, upload.single('wardrobeImage'), async (req, res) => {
+    try {
+        // Only allow password-authenticated users to save
+        if (!req.hasServerKeys) {
+            return res.status(403).json({ error: 'Only password-authenticated users can save wardrobe items' });
+        }
+        
+        const file = req.file;
+        if (!file) {
+            return res.status(400).json({ error: 'No image provided' });
+        }
+        
+        // Ensure wardrobe directory exists
+        const wardrobePath = path.join(__dirname, 'public', 'wardrobe');
+        if (!fs.existsSync(wardrobePath)) {
+            fs.mkdirSync(wardrobePath, { recursive: true });
+        }
+        
+        // Generate random filename
+        const randomName = crypto.randomBytes(16).toString('hex') + '.png';
+        
+        // Save the image
+        fs.writeFileSync(path.join(wardrobePath, randomName), file.buffer);
+        
+        res.json({ success: true, filename: randomName });
+    } catch (err) {
+        console.error('Save wardrobe error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get list of available wardrobe presets
+app.get('/api/wardrobe/list', authMiddleware, (req, res) => {
+    const wardrobePath = path.join(__dirname, 'public', 'wardrobe');
+    let presets = [];
+    
+    if (fs.existsSync(wardrobePath)) {
+        presets = fs.readdirSync(wardrobePath)
+            .filter(f => f.endsWith('.png'))
+            .map(f => f.replace('.png', ''));
+    }
+    
+    res.json({ presets, canSave: req.hasServerKeys });
+});
+
 // Save prompt
 app.post('/api/prompt', authMiddleware, async (req, res) => {
     const { prompt } = req.body;
@@ -377,12 +425,12 @@ app.post('/api/generate', authMiddleware, upload.fields([
                 if (provider === 'gemini' && geminiKey) {
                     const result = await generateWithGemini(geminiKey, personImage.buffer, wardrobeBuffer, prompt);
                     results.push({ provider: 'Gemini', ...result });
-                } else if (provider === 'grok-2-image' && xaiKey) {
-                    const result = await generateWithXai(xaiKey, 'grok-2-image', personImage.buffer, wardrobeBuffer, prompt);
-                    results.push({ provider: 'Grok 2 Image', ...result });
-                } else if (provider === 'grok-2-image-pro' && xaiKey) {
-                    const result = await generateWithXai(xaiKey, 'grok-2-image-pro', personImage.buffer, wardrobeBuffer, prompt);
-                    results.push({ provider: 'Grok 2 Image Pro', ...result });
+                } else if (provider === 'grok-imagine-image' && xaiKey) {
+                    const result = await generateWithXai(xaiKey, 'grok-imagine-image', personImage.buffer, wardrobeBuffer, prompt);
+                    results.push({ provider: 'Grok Imagine Image', ...result });
+                } else if (provider === 'grok-imagine-image-pro' && xaiKey) {
+                    const result = await generateWithXai(xaiKey, 'grok-imagine-image-pro', personImage.buffer, wardrobeBuffer, prompt);
+                    results.push({ provider: 'Grok Imagine Image Pro', ...result });
                 } else {
                     results.push({ provider, error: 'API key not available' });
                 }
@@ -403,7 +451,7 @@ app.post('/api/generate', authMiddleware, upload.fields([
 async function generateWithGemini(apiKey, personBuffer, wardrobeBuffer, prompt) {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ 
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-3-pro-image-preview',
         generationConfig: { responseModalities: ['image', 'text'] }
     });
     

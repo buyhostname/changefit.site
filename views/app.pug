@@ -51,10 +51,8 @@ block content
             //- Preset selection
             .mb-4
               label(class="block text-sm font-medium mb-2") Preset Outfits
-              .grid.grid-cols-4.gap-2
-                each num in [1, 2, 3]
-                  button(type="button" onclick=`selectPreset(${num})` class="preset-btn aspect-square bg-gray-700 hover:bg-gray-600 rounded-lg overflow-hidden transition border-2 border-transparent" data-preset=num)
-                    img(src=`/public/wardrobe/${num}.png` alt=`Outfit ${num}` class="w-full h-full object-cover" onerror="this.parentElement.innerHTML='<span class=\"text-xs text-gray-400\">" + num + "</span>'")
+              #wardrobeGrid(class="grid grid-cols-4 gap-2")
+                //- Presets loaded dynamically
                 
                 label(class="preset-btn aspect-square bg-gray-700 hover:bg-gray-600 rounded-lg flex items-center justify-center cursor-pointer transition border-2 border-transparent" data-preset="custom")
                   input(type="file" accept="image/*" onchange="handleWardrobeImage(this)" class="hidden")
@@ -64,6 +62,11 @@ block content
             //- Custom wardrobe preview
             #wardrobePreview(class="w-full aspect-video bg-gray-700 rounded-lg flex items-center justify-center overflow-hidden hidden")
               span(class="text-gray-400") Custom image preview
+            
+            //- Save button (only shown for password-authenticated users with custom image)
+            if hasServerKeys
+              button(type="button" onclick="saveWardrobeItem()" id="saveWardrobeBtn" class="w-full mt-3 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition hidden")
+                | Save to Presets
           
           //- Prompt
           .bg-gray-800.rounded-xl.p-6
@@ -83,19 +86,19 @@ block content
                 input(type="checkbox" name="provider" value="gemini" checked class="w-5 h-5 rounded text-blue-600")
                 .flex-1
                   span(class="font-medium") Gemini
-                  span(class="text-xs text-gray-400 ml-2") gemini-2.0-flash-exp
+                  span(class="text-xs text-gray-400 ml-2") gemini-3-pro-image-preview
               
               label(class="flex items-center gap-3 p-3 bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-600 transition")
-                input(type="checkbox" name="provider" value="grok-2-image" class="w-5 h-5 rounded text-blue-600")
+                input(type="checkbox" name="provider" value="grok-imagine-image" class="w-5 h-5 rounded text-blue-600")
                 .flex-1
-                  span(class="font-medium") Grok 2 Image
-                  span(class="text-xs text-gray-400 ml-2") grok-2-image
+                  span(class="font-medium") Grok Imagine Image
+                  span(class="text-xs text-gray-400 ml-2") grok-imagine-image
               
               label(class="flex items-center gap-3 p-3 bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-600 transition")
-                input(type="checkbox" name="provider" value="grok-2-image-pro" class="w-5 h-5 rounded text-blue-600")
+                input(type="checkbox" name="provider" value="grok-imagine-image-pro" class="w-5 h-5 rounded text-blue-600")
                 .flex-1
-                  span(class="font-medium") Grok 2 Image Pro
-                  span(class="text-xs text-gray-400 ml-2") grok-2-image-pro
+                  span(class="font-medium") Grok Imagine Image Pro
+                  span(class="text-xs text-gray-400 ml-2") grok-imagine-image-pro
             
             button(type="button" onclick="generate()" id="generateBtn" class="w-full mt-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed")
               | Generate
@@ -144,8 +147,9 @@ block scripts
     let personImageData = null;
     let wardrobeImageData = null;
     let selectedPreset = null;
+    let canSaveWardrobe = false;
     
-    // Load saved settings on page load
+    // Load saved settings and wardrobe presets on page load
     document.addEventListener('DOMContentLoaded', async () => {
       try {
         const res = await fetch('/api/settings');
@@ -162,7 +166,37 @@ block scripts
       } catch (err) {
         console.error('Failed to load settings:', err);
       }
+      
+      // Load wardrobe presets
+      await loadWardrobePresets();
     });
+    
+    async function loadWardrobePresets() {
+      try {
+        const res = await fetch('/api/wardrobe/list');
+        const data = await res.json();
+        canSaveWardrobe = data.canSave;
+        
+        const grid = document.getElementById('wardrobeGrid');
+        const addBtn = grid.querySelector('[data-preset="custom"]');
+        
+        // Remove existing preset buttons (except the add button)
+        grid.querySelectorAll('.preset-btn:not([data-preset="custom"])').forEach(btn => btn.remove());
+        
+        // Add preset buttons before the add button
+        data.presets.forEach(name => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.onclick = () => selectPreset(name);
+          btn.className = 'preset-btn aspect-square bg-gray-700 hover:bg-gray-600 rounded-lg overflow-hidden transition border-2 border-transparent';
+          btn.dataset.preset = name;
+          btn.innerHTML = `<img src="/public/wardrobe/${name}.png" alt="Outfit" class="w-full h-full object-cover" onerror="this.parentElement.style.display='none'">`;
+          grid.insertBefore(btn, addBtn);
+        });
+      } catch (err) {
+        console.error('Failed to load wardrobe presets:', err);
+      }
+    }
     
     function handlePersonImage(input) {
       const file = input.files[0];
@@ -195,6 +229,12 @@ block scripts
       document.querySelector(`[data-preset="${num}"]`).classList.add('border-blue-500');
       
       document.getElementById('wardrobePreview').classList.add('hidden');
+      
+      // Hide save button when selecting a preset
+      const saveBtn = document.getElementById('saveWardrobeBtn');
+      if (saveBtn) {
+        saveBtn.classList.add('hidden');
+      }
     }
     
     function handleWardrobeImage(input) {
@@ -218,8 +258,59 @@ block scripts
         const preview = document.getElementById('wardrobePreview');
         preview.innerHTML = `<img src="${wardrobeImageData}" class="w-full h-full object-contain">`;
         preview.classList.remove('hidden');
+        
+        // Show save button if user can save
+        const saveBtn = document.getElementById('saveWardrobeBtn');
+        if (saveBtn && canSaveWardrobe) {
+          saveBtn.classList.remove('hidden');
+        }
       };
       reader.readAsDataURL(file);
+    }
+    
+    async function saveWardrobeItem() {
+      if (!wardrobeImageData) {
+        alert('No custom wardrobe image to save');
+        return;
+      }
+      
+      const saveBtn = document.getElementById('saveWardrobeBtn');
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+      
+      try {
+        const formData = new FormData();
+        const wardrobeBlob = await fetch(wardrobeImageData).then(r => r.blob());
+        formData.append('wardrobeImage', wardrobeBlob, 'wardrobe.png');
+        
+        const res = await fetch('/api/wardrobe/save', {
+          method: 'POST',
+          body: formData
+        });
+        
+        const data = await res.json();
+        
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        
+        alert('Saved to wardrobe!');
+        
+        // Reload presets and select the new one
+        await loadWardrobePresets();
+        selectPreset(data.filename.replace('.png', ''));
+        
+        // Hide save button and preview
+        saveBtn.classList.add('hidden');
+        document.getElementById('wardrobePreview').classList.add('hidden');
+        wardrobeImageData = null;
+        
+      } catch (err) {
+        alert('Failed to save: ' + err.message);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save to Presets';
+      }
     }
     
     async function clearPrompt() {

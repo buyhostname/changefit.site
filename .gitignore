@@ -1,5 +1,27 @@
+# Environment & secrets
 .env
+.env.*
+*.pem
+*.key
+
+# Dependencies
 node_modules/
+
+# Logs
 *.log
+npm-debug.log*
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Uploads & user data
 uploads/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Prisma
+prisma/*.db
